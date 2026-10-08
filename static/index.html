@@ -150,15 +150,35 @@
   }
   .problem {
     font-family: var(--serif);
-    font-size: 26px;
+    font-size: 22px;
     line-height: calc(var(--cell) * 1.5);
     margin: 0;
     color: var(--ink);
   }
 
-  .answer-row { margin-bottom: 8px; }
-  .answer-row input { font-size: 20px; }
-  .hint { font-size: 14px; color: var(--ink-soft); margin: 0 0 4px; }
+  textarea {
+    display: block;
+    width: 100%;
+    min-height: 200px;
+    resize: vertical;
+    font-family: var(--serif);
+    font-size: 19px;
+    line-height: 1.5;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  textarea::placeholder { color: #8e98b8; }
+  textarea:focus-visible { outline-offset: 0; border-color: var(--ink); }
+  textarea:disabled { background: #f1f3f9; color: var(--ink-soft); }
+  .hint { font-size: 14px; color: var(--ink-soft); margin: 8px 0 14px; }
+
+  .source { margin: 10px 0 0; font-size: 14px; color: var(--ink-soft); }
+  details.solution { margin-top: 10px; }
+  details.solution summary, .history summary { cursor: pointer; font-weight: 500; }
+  details.solution p { margin: 8px 0 0; font-family: var(--serif); font-size: 17px; line-height: 1.55; }
 
   .tracks { display: grid; gap: 10px; margin: 24px 0; }
   .track { display: flex; align-items: center; gap: 14px; }
@@ -180,15 +200,23 @@
   @keyframes pulse { 50% { opacity: 0.35; } }
 
   .history { list-style: none; margin: 0; padding: 0; }
-  .history li {
-    display: flex; justify-content: space-between; gap: 12px;
-    padding: 8px 0;
-    border-top: 1px solid var(--line);
-  }
-  .history .ans { font-family: var(--serif); font-size: 18px; overflow-wrap: anywhere; }
-  .history .verdict { white-space: nowrap; font-weight: 500; }
+  .history li { padding: 10px 0; border-top: 1px solid var(--line); }
+  .history summary { display: flex; justify-content: space-between; gap: 12px; }
   .history .wrong { color: var(--red); }
   .history .right { color: var(--green); }
+  .history .comment { margin: 8px 0 0; }
+  .history pre {
+    margin: 8px 0 0;
+    padding: 10px 12px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-family: var(--serif);
+    font-size: 16px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
 
   .footer-note { margin-top: 36px; font-size: 14px; color: var(--ink-soft); }
 
@@ -196,7 +224,8 @@
     h1 { font-size: 26px; }
     .room-code { font-size: 48px; }
     .count { font-size: 120px; }
-    .problem { font-size: 22px; }
+    .problem { font-size: 20px; }
+    textarea { font-size: 17px; }
     .row.stack { flex-direction: column; }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -211,7 +240,7 @@
   <!-- Лобби -->
   <section id="view-lobby" class="view">
     <h1>Дуэль по математике</h1>
-    <p class="muted">Две стороны, одна случайная задача, три попытки. Ответы проверяет ИИ. Побеждает тот, кто решит первым.</p>
+    <p class="muted">Две стороны, одна олимпиадная задача, три попытки. ИИ проверяет решение целиком, одного ответа мало. Побеждает тот, чьё решение засчитают первым.</p>
 
     <div class="field">
       <label for="name">Ваше имя</label>
@@ -256,17 +285,22 @@
     <div id="result" class="result" hidden>
       <strong id="result-title"></strong>
       <span id="result-detail"></span>
+      <p class="source" id="result-source"></p>
+      <details class="solution">
+        <summary>Эталонное решение</summary>
+        <p id="result-solution"></p>
+      </details>
     </div>
 
     <div class="sheet"><p class="problem" id="problem"></p></div>
 
     <form id="answer-form" autocomplete="off">
-      <label for="answer">Ваш ответ</label>
-      <div class="row answer-row stack">
-        <input id="answer" type="text" maxlength="500" placeholder="Число или дробь, например 1/2">
-        <button id="btn-submit" type="submit">Ответить</button>
+      <label for="answer">Ваше решение</label>
+      <textarea id="answer" rows="9" maxlength="6000" placeholder="Запишите ход рассуждений и итоговый ответ"></textarea>
+      <p class="hint">Ответ без решения не засчитывается. Ctrl+Enter отправляет решение.</p>
+      <div class="actions">
+        <button id="btn-submit" type="submit">Отправить решение</button>
       </div>
-      <p class="hint">Итоговый ответ одним числом. Запятая и точка в десятичных дробях подойдут обе.</p>
     </form>
     <p id="game-note" class="notice" role="status" aria-live="polite"></p>
 
@@ -293,6 +327,7 @@
   let offset = 0;
   let polling = false;
   let submitting = false;
+  let openLatest = 0; // номер попытки (с единицы), которую раскрыть, когда придёт её вердикт
 
   // ---------- сессия ----------
   function loadSession() {
@@ -347,16 +382,37 @@
 
   function renderHistory(attempts) {
     const ul = $('history');
+    // сохраняем, какие попытки раскрыты, чтобы опрос не сворачивал их
+    const opened = new Set(Array.from(ul.querySelectorAll('details[open]')).map((d) => d.dataset.n));
     ul.textContent = '';
-    attempts.forEach((a) => {
+    // после проверки раскрываем новую попытку, чтобы сразу был виден комментарий
+    if (openLatest > 0 && attempts.length >= openLatest && attempts[openLatest - 1].status !== 'pending') {
+      opened.add(String(openLatest - 1));
+      openLatest = 0;
+    }
+    attempts.forEach((a, i) => {
       const li = document.createElement('li');
-      const ans = document.createElement('span');
-      ans.className = 'ans';
-      ans.textContent = a.answer;
+      const details = document.createElement('details');
+      details.dataset.n = String(i);
+      if (opened.has(String(i))) details.open = true;
+      const summary = document.createElement('summary');
+      const title = document.createElement('span');
+      title.textContent = 'Попытка ' + (i + 1);
       const verdict = document.createElement('span');
-      verdict.className = 'verdict ' + a.status;
-      verdict.textContent = a.status === 'right' ? 'верно' : a.status === 'wrong' ? 'неверно' : 'проверяется';
-      li.append(ans, verdict);
+      verdict.className = a.status;
+      verdict.textContent = a.status === 'right' ? 'засчитано' : a.status === 'wrong' ? 'не засчитано' : 'проверяется';
+      summary.append(title, verdict);
+      details.appendChild(summary);
+      if (a.comment) {
+        const comment = document.createElement('p');
+        comment.className = 'comment';
+        comment.textContent = a.comment;
+        details.appendChild(comment);
+      }
+      const text = document.createElement('pre');
+      text.textContent = a.answer;
+      details.appendChild(text);
+      li.appendChild(details);
       ul.appendChild(li);
     });
   }
@@ -403,9 +459,10 @@
       } else {
         $('result-title').textContent = 'Ничья';
       }
-      $('result-detail').textContent = s.winner === 'draw'
-        ? 'У обоих кончились попытки. Верный ответ: ' + s.answer
-        : 'Верный ответ: ' + s.answer;
+      $('result-detail').textContent = (s.winner === 'draw' ? 'У обоих кончились попытки. ' : '') +
+        'Верный ответ: ' + s.answer;
+      $('result-source').textContent = s.source ? 'Источник: ' + s.source : '';
+      $('result-solution').textContent = s.solution || '';
     }
 
     const canAnswer = !finished && used < max && !checking && !submitting;
@@ -414,7 +471,7 @@
     $('after').hidden = !finished;
 
     if (checking) {
-      setNote('game-note', s.checker === 'ai' ? 'ИИ проверяет ответ…' : 'Проверяем ответ…');
+      setNote('game-note', 'ИИ проверяет решение, это может занять до минуты…');
     } else if (!finished && used >= max) {
       setNote('game-note', 'Попытки закончились. Ждём, решит ли соперник.');
     } else if (finished) {
@@ -521,24 +578,43 @@
     e.preventDefault();
     if (submitting || !session) return;
     const answer = $('answer').value.trim();
-    if (!answer) { setNote('game-note', 'Введите ответ.', true); return; }
+    if (!answer) { setNote('game-note', 'Сначала запишите решение.', true); return; }
     submitting = true;
     $('btn-submit').disabled = true;
-    setNote('game-note', '');
+    $('answer').disabled = true;
+    setNote('game-note', 'ИИ проверяет решение, это может занять до минуты…');
+    let verdict = null;
+    const before = lastState ? lastState.me.attempts.length : 0;
     try {
-      const r = await api('/api/submit', { code: session.code, token: session.token, answer });
-      $('answer').value = '';
-      if (r.correct) setNote('game-note', 'Верно!');
-      else if (r.attempts_left > 0) setNote('game-note', 'Неверно. Осталось попыток: ' + r.attempts_left + '.', true);
-      else setNote('game-note', 'Неверно. Попытки закончились.', true);
+      verdict = await api('/api/submit', { code: session.code, token: session.token, answer });
+      // после неверного решения текст остаётся в поле: его можно поправить
+      if (verdict.correct || verdict.game_over) $('answer').value = '';
     } catch (err) {
       setNote('game-note', err.message, true);
     } finally {
       submitting = false;
       await poll();
       if (lastState) render(lastState);
+      if (verdict) {
+        openLatest = before + 1;
+        if (lastState) render(lastState);
+        if (verdict.correct) {
+          setNote('game-note', 'Решение засчитано.');
+        } else {
+          const left = verdict.attempts_left > 0
+            ? 'Осталось попыток: ' + verdict.attempts_left + '.'
+            : 'Попытки закончились.';
+          setNote('game-note', 'Решение не засчитано. ' + left + ' Комментарий проверяющего в списке попыток ниже.', true);
+        }
+      }
       const input = $('answer');
       if (!input.disabled) input.focus();
+    }
+  });
+  $('answer').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      $('answer-form').requestSubmit();
     }
   });
 
@@ -552,6 +628,16 @@
     $('join-code').value = urlCode.toUpperCase().slice(0, 4);
     if (!$('name').value) $('name').focus(); else $('btn-join').focus();
   }
+
+  // без ключа ИИ играть нельзя: предупреждаем сразу
+  api('/api/info').then((info) => {
+    if (!info.ready) {
+      $('btn-create').disabled = true;
+      $('btn-join').disabled = true;
+      setNote('lobby-note', 'Сервер запущен без ключа ИИ, поэтому игра недоступна. ' +
+        'Создайте файл .env со строкой ANTHROPIC_API_KEY=ваш_ключ и перезапустите сервер.', true);
+    }
+  }).catch(() => {});
 
   setInterval(poll, POLL_MS);
   setInterval(tickCountdown, 100);
