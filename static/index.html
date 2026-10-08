@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>math-duels</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --page: #e8ecf4;
+    --paper: #fdfdff;
+    --grid: #d3dcee;
+    --ink: #1c2858;
+    --ink-soft: #55608a;
+    --red: #d3312a;
+    --green: #1c8a57;
+    --line: #b9c4de;
+    --ui: "Golos Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --serif: "Spectral", Georgia, "Times New Roman", serif;
+    --cell: 24px;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--page); }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: var(--ui);
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  [hidden] { display: none !important; }
+  main { max-width: 680px; margin: 0 auto; padding: 20px 16px 64px; }
+  .brand {
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    font-size: 18px;
+    margin: 8px 0 28px;
+  }
+  h1 { font-size: 30px; line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 8px; }
+  h2 { font-size: 22px; margin: 0 0 12px; letter-spacing: -0.01em; }
+  p { margin: 0 0 16px; }
+  .muted { color: var(--ink-soft); }
+
+  label { display: block; font-weight: 500; margin-bottom: 6px; }
+  input[type="text"] {
+    width: 100%;
+    font: inherit;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  input[type="text"]::placeholder { color: #8e98b8; }
+  :focus-visible { outline: 3px solid #5b7bff; outline-offset: 2px; }
+  input[type="text"]:focus-visible { outline-offset: 0; border-color: var(--ink); }
+
+  button {
+    font: inherit;
+    font-weight: 500;
+    border-radius: 6px;
+    padding: 10px 18px;
+    cursor: pointer;
+    border: 1.5px solid var(--ink);
+    background: var(--ink);
+    color: #fff;
+  }
+  button.secondary { background: transparent; color: var(--ink); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .field { margin-bottom: 20px; }
+  .row { display: flex; gap: 10px; align-items: stretch; }
+  .row input { flex: 1; min-width: 0; }
+  .code-input { text-transform: uppercase; letter-spacing: 0.15em; }
+  .or { margin: 28px 0 20px; display: flex; align-items: center; gap: 12px; color: var(--ink-soft); }
+  .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  .notice {
+    min-height: 1.5em;
+    margin: 14px 0 0;
+    font-weight: 500;
+  }
+  .notice.error { color: var(--red); }
+
+  .room-code {
+    font-family: var(--serif);
+    font-size: 64px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    margin: 8px 0 20px;
+  }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+  .versus {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    margin: 12px 0 8px;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .versus .p2 { text-align: right; }
+  .versus .x { font-weight: 400; color: var(--ink-soft); }
+  .count {
+    font-family: var(--serif);
+    font-size: 160px;
+    line-height: 1;
+    font-weight: 600;
+    text-align: center;
+    margin: 24px 0 0;
+  }
+
+  .result {
+    border: 2px solid var(--ink);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    background: var(--paper);
+  }
+  .result strong { display: block; font-size: 22px; letter-spacing: -0.01em; }
+  .result.win { border-color: var(--green); }
+  .result.lose { border-color: var(--red); }
+
+  /* Клетчатый лист с красным полем: сюда попадает условие задачи */
+  .sheet {
+    position: relative;
+    background-color: var(--paper);
+    background-image:
+      linear-gradient(to right, var(--grid) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+    background-size: var(--cell) var(--cell);
+    border: 1.5px solid var(--line);
+    border-radius: 2px;
+    padding: calc(var(--cell) * 1) 20px calc(var(--cell) * 1) calc(var(--cell) * 3 + 8px);
+    margin-bottom: 24px;
+    box-shadow: 0 1px 0 var(--line);
+  }
+  .sheet::before {
+    content: "";
+    position: absolute;
+    top: 0; bottom: 0;
+    left: calc(var(--cell) * 2 + 8px);
+    width: 2px;
+    background: var(--red);
+    opacity: 0.75;
+  }
+  .problem {
+    font-family: var(--serif);
+    font-size: 26px;
+    line-height: calc(var(--cell) * 1.5);
+    margin: 0;
+    color: var(--ink);
+  }
+
+  .answer-row { margin-bottom: 8px; }
+  .answer-row input { font-size: 20px; }
+  .hint { font-size: 14px; color: var(--ink-soft); margin: 0 0 4px; }
+
+  .tracks { display: grid; gap: 10px; margin: 24px 0; }
+  .track { display: flex; align-items: center; gap: 14px; }
+  .track .who { flex: 1; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .marks { display: flex; gap: 8px; }
+  .mark {
+    width: 36px; height: 36px;
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    display: grid; place-items: center;
+    font-family: var(--serif);
+    font-size: 24px;
+    line-height: 1;
+    background: var(--paper);
+  }
+  .mark-wrong { border-color: var(--red); color: var(--red); }
+  .mark-right { border-color: var(--green); color: var(--green); }
+  .mark-pending { border-style: dashed; border-color: var(--ink-soft); color: var(--ink-soft); animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+
+  .history { list-style: none; margin: 0; padding: 0; }
+  .history li {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 8px 0;
+    border-top: 1px solid var(--line);
+  }
+  .history .ans { font-family: var(--serif); font-size: 18px; overflow-wrap: anywhere; }
+  .history .verdict { white-space: nowrap; font-weight: 500; }
+  .history .wrong { color: var(--red); }
+  .history .right { color: var(--green); }
+
+  .footer-note { margin-top: 36px; font-size: 14px; color: var(--ink-soft); }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 26px; }
+    .room-code { font-size: 48px; }
+    .count { font-size: 120px; }
+    .problem { font-size: 22px; }
+    .row.stack { flex-direction: column; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mark-pending { animation: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">math-duels</div>
+
+  <!-- Лобби -->
+  <section id="view-lobby" class="view">
+    <h1>Дуэль по математике</h1>
+    <p class="muted">Две стороны, одна случайная задача, три попытки. Ответы проверяет ИИ. Побеждает тот, кто решит первым.</p>
+
+    <div class="field">
+      <label for="name">Ваше имя</label>
+      <input id="name" type="text" maxlength="20" autocomplete="nickname" placeholder="Например, Даниил">
+    </div>
+
+    <button id="btn-create" type="button">Создать комнату</button>
+
+    <div class="or">или войдите по коду</div>
+
+    <div class="row stack">
+      <input id="join-code" class="code-input" type="text" maxlength="4" autocomplete="off" aria-label="Код комнаты" placeholder="Код комнаты">
+      <button id="btn-join" class="secondary" type="button">Войти в комнату</button>
+    </div>
+    <p id="lobby-note" class="notice" role="status"></p>
+  </section>
+
+  <!-- Ожидание соперника -->
+  <section id="view-waiting" class="view" hidden>
+    <h2>Ждём соперника</h2>
+    <p class="muted">Отправьте код или ссылку. Игра начнётся, как только соперник войдёт.</p>
+    <div class="room-code" id="waiting-code" aria-label="Код комнаты"></div>
+    <div class="actions">
+      <button id="btn-copy" type="button">Скопировать ссылку</button>
+      <button id="btn-leave-waiting" class="secondary" type="button">Выйти</button>
+    </div>
+    <p id="copy-note" class="notice" role="status"></p>
+  </section>
+
+  <!-- Обратный отсчёт -->
+  <section id="view-countdown" class="view" hidden>
+    <div class="versus">
+      <span id="cd-me"></span>
+      <span class="x">против</span>
+      <span id="cd-opp" class="p2"></span>
+    </div>
+    <div class="count" id="cd-number" aria-live="polite"></div>
+  </section>
+
+  <!-- Игра и результат -->
+  <section id="view-game" class="view" hidden>
+    <div id="result" class="result" hidden>
+      <strong id="result-title"></strong>
+      <span id="result-detail"></span>
+    </div>
+
+    <div class="sheet"><p class="problem" id="problem"></p></div>
+
+    <form id="answer-form" autocomplete="off">
+      <label for="answer">Ваш ответ</label>
+      <div class="row answer-row stack">
+        <input id="answer" type="text" maxlength="500" placeholder="Число или дробь, например 1/2">
+        <button id="btn-submit" type="submit">Ответить</button>
+      </div>
+      <p class="hint">Итоговый ответ одним числом. Запятая и точка в десятичных дробях подойдут обе.</p>
+    </form>
+    <p id="game-note" class="notice" role="status" aria-live="polite"></p>
+
+    <div class="tracks" aria-label="Попытки">
+      <div class="track"><span class="who" id="track-me-name"></span><span class="marks" id="track-me"></span></div>
+      <div class="track"><span class="who" id="track-opp-name"></span><span class="marks" id="track-opp"></span></div>
+    </div>
+
+    <ul class="history" id="history" aria-label="Ваши ответы"></ul>
+
+    <div id="after" class="actions" hidden style="margin-top:24px">
+      <button id="btn-new" type="button">Новая игра</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const POLL_MS = 800;
+
+  let session = loadSession();
+  let lastState = null;
+  let offset = 0;
+  let polling = false;
+  let submitting = false;
+
+  // ---------- сессия ----------
+  function loadSession() {
+    try { return JSON.parse(sessionStorage.getItem('math-duels') || 'null'); } catch (e) { return null; }
+  }
+  function saveSession(s) {
+    session = s;
+    try { sessionStorage.setItem('math-duels', JSON.stringify(s)); } catch (e) {}
+  }
+  function clearSession() {
+    session = null;
+    lastState = null;
+    try { sessionStorage.removeItem('math-duels'); } catch (e) {}
+  }
+
+  // ---------- сеть ----------
+  async function api(path, body) {
+    const opts = body
+      ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+      : {};
+    let res;
+    try { res = await fetch(path, opts); }
+    catch (e) { const err = new Error('Нет связи с сервером'); err.status = 0; throw err; }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { const err = new Error(data.error || 'Что-то пошло не так'); err.status = res.status; throw err; }
+    return data;
+  }
+
+  // ---------- экраны ----------
+  function show(name) {
+    document.querySelectorAll('.view').forEach((v) => { v.hidden = v.id !== 'view-' + name; });
+  }
+  function setNote(id, text, isError) {
+    const el = $(id);
+    el.textContent = text || '';
+    el.classList.toggle('error', !!isError);
+  }
+
+  function renderMarks(container, attempts, max) {
+    container.textContent = '';
+    for (let i = 0; i < max; i++) {
+      const a = attempts[i];
+      const span = document.createElement('span');
+      const status = a ? a.status : 'empty';
+      span.className = 'mark mark-' + status;
+      span.textContent = status === 'right' ? '✓' : status === 'wrong' ? '✗' : status === 'pending' ? '…' : '';
+      span.setAttribute('aria-label',
+        status === 'right' ? 'верно' : status === 'wrong' ? 'неверно' : status === 'pending' ? 'проверяется' : 'попытка не использована');
+      container.appendChild(span);
+    }
+  }
+
+  function renderHistory(attempts) {
+    const ul = $('history');
+    ul.textContent = '';
+    attempts.forEach((a) => {
+      const li = document.createElement('li');
+      const ans = document.createElement('span');
+      ans.className = 'ans';
+      ans.textContent = a.answer;
+      const verdict = document.createElement('span');
+      verdict.className = 'verdict ' + a.status;
+      verdict.textContent = a.status === 'right' ? 'верно' : a.status === 'wrong' ? 'неверно' : 'проверяется';
+      li.append(ans, verdict);
+      ul.appendChild(li);
+    });
+  }
+
+  function render(s) {
+    offset = s.server_time - Date.now() / 1000;
+
+    if (s.phase === 'waiting') {
+      $('waiting-code').textContent = s.code;
+      show('waiting');
+      return;
+    }
+    if (s.phase === 'countdown') {
+      $('cd-me').textContent = s.me.name;
+      $('cd-opp').textContent = s.opponent.name;
+      show('countdown');
+      tickCountdown();
+      return;
+    }
+
+    show('game');
+    const max = s.max_attempts;
+    const used = s.me.attempts.length;
+    const checking = s.me.attempts.some((a) => a.status === 'pending');
+    const finished = s.phase === 'finished';
+
+    $('problem').textContent = s.problem || '';
+    $('track-me-name').textContent = s.me.name + ' (вы)';
+    $('track-opp-name').textContent = s.opponent.name;
+    renderMarks($('track-me'), s.me.attempts, max);
+    renderMarks($('track-opp'), s.opponent.attempts, max);
+    renderHistory(s.me.attempts);
+
+    const result = $('result');
+    result.hidden = !finished;
+    result.classList.remove('win', 'lose');
+    if (finished) {
+      if (s.winner === 'you') {
+        result.classList.add('win');
+        $('result-title').textContent = 'Вы победили';
+      } else if (s.winner === 'opponent') {
+        result.classList.add('lose');
+        $('result-title').textContent = 'Победил ' + s.opponent.name;
+      } else {
+        $('result-title').textContent = 'Ничья';
+      }
+      $('result-detail').textContent = s.winner === 'draw'
+        ? 'У обоих кончились попытки. Верный ответ: ' + s.answer
+        : 'Верный ответ: ' + s.answer;
+    }
+
+    const canAnswer = !finished && used < max && !checking && !submitting;
+    $('answer').disabled = !canAnswer;
+    $('btn-submit').disabled = !canAnswer;
+    $('after').hidden = !finished;
+
+    if (checking) {
+      setNote('game-note', s.checker === 'ai' ? 'ИИ проверяет ответ…' : 'Проверяем ответ…');
+    } else if (!finished && used >= max) {
+      setNote('game-note', 'Попытки закончились. Ждём, решит ли соперник.');
+    } else if (finished) {
+      setNote('game-note', '');
+    }
+  }
+
+  function tickCountdown() {
+    if (!lastState || lastState.phase !== 'countdown') return;
+    const left = lastState.starts_at - (Date.now() / 1000 + offset);
+    $('cd-number').textContent = left > 0 ? String(Math.ceil(left)) : 'Старт';
+  }
+
+  // ---------- опрос состояния ----------
+  async function poll() {
+    if (!session || polling) return;
+    polling = true;
+    try {
+      const s = await api('/api/state?code=' + encodeURIComponent(session.code) + '&token=' + encodeURIComponent(session.token));
+      const wasPlaying = lastState && lastState.phase === 'countdown' && s.phase === 'playing';
+      lastState = s;
+      render(s);
+      if (wasPlaying || (s.phase === 'playing' && document.activeElement === document.body)) {
+        const input = $('answer');
+        if (!input.disabled) input.focus();
+      }
+    } catch (e) {
+      if (e.status === 404 || e.status === 403) {
+        clearSession();
+        show('lobby');
+        setNote('lobby-note', 'Комната закрыта. Создайте новую или войдите по коду.', true);
+      }
+    } finally {
+      polling = false;
+    }
+  }
+
+  // ---------- действия ----------
+  function readName() {
+    const name = $('name').value.trim();
+    if (!name) {
+      setNote('lobby-note', 'Введите имя, чтобы соперник знал, с кем играет.', true);
+      $('name').focus();
+      return null;
+    }
+    try { localStorage.setItem('math-duels-name', name); } catch (e) {}
+    return name;
+  }
+
+  $('btn-create').addEventListener('click', async () => {
+    const name = readName();
+    if (!name) return;
+    setNote('lobby-note', '');
+    try {
+      const r = await api('/api/create', { name });
+      saveSession({ code: r.code, token: r.token });
+      await poll();
+    } catch (e) { setNote('lobby-note', e.message, true); }
+  });
+
+  async function joinRoom() {
+    const name = readName();
+    if (!name) return;
+    const code = $('join-code').value.trim().toUpperCase();
+    if (code.length !== 4) {
+      setNote('lobby-note', 'Код состоит из четырёх символов.', true);
+      $('join-code').focus();
+      return;
+    }
+    setNote('lobby-note', '');
+    try {
+      const r = await api('/api/join', { name, code });
+      saveSession({ code: r.code, token: r.token });
+      history.replaceState(null, '', location.pathname);
+      await poll();
+    } catch (e) { setNote('lobby-note', e.message, true); }
+  }
+  $('btn-join').addEventListener('click', joinRoom);
+  $('join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') joinRoom(); });
+  $('name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') ($('join-code').value.trim() ? joinRoom() : $('btn-create').click());
+  });
+
+  $('btn-copy').addEventListener('click', async () => {
+    if (!session) return;
+    const link = location.origin + '/?code=' + session.code;
+    try {
+      await navigator.clipboard.writeText(link);
+      setNote('copy-note', 'Ссылка скопирована');
+    } catch (e) {
+      setNote('copy-note', 'Скопируйте вручную: ' + link);
+    }
+  });
+
+  function leave() {
+    clearSession();
+    setNote('lobby-note', '');
+    show('lobby');
+  }
+  $('btn-leave-waiting').addEventListener('click', leave);
+  $('btn-new').addEventListener('click', leave);
+
+  $('answer-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (submitting || !session) return;
+    const answer = $('answer').value.trim();
+    if (!answer) { setNote('game-note', 'Введите ответ.', true); return; }
+    submitting = true;
+    $('btn-submit').disabled = true;
+    setNote('game-note', '');
+    try {
+      const r = await api('/api/submit', { code: session.code, token: session.token, answer });
+      $('answer').value = '';
+      if (r.correct) setNote('game-note', 'Верно!');
+      else if (r.attempts_left > 0) setNote('game-note', 'Неверно. Осталось попыток: ' + r.attempts_left + '.', true);
+      else setNote('game-note', 'Неверно. Попытки закончились.', true);
+    } catch (err) {
+      setNote('game-note', err.message, true);
+    } finally {
+      submitting = false;
+      await poll();
+      if (lastState) render(lastState);
+      const input = $('answer');
+      if (!input.disabled) input.focus();
+    }
+  });
+
+  // ---------- старт ----------
+  try {
+    const savedName = localStorage.getItem('math-duels-name');
+    if (savedName) $('name').value = savedName;
+  } catch (e) {}
+  const urlCode = new URLSearchParams(location.search).get('code');
+  if (urlCode) {
+    $('join-code').value = urlCode.toUpperCase().slice(0, 4);
+    if (!$('name').value) $('name').focus(); else $('btn-join').focus();
+  }
+
+  setInterval(poll, POLL_MS);
+  setInterval(tickCountdown, 100);
+  if (session) poll();
+})();
+</script>
+</body>
+</html>
